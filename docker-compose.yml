@@ -1,0 +1,30 @@
+services:
+  customer_db:
+    image: postgres:15
+    container_name: customer_db
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: customers
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./app/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  customer_api:
+    build: ./app
+    container_name: customer_api
+    depends_on:
+      - customer_db
+    environment:
+      DB_NAME: customers
+      DB_USER: user
+      DB_PASS: password
+      DB_HOST: customer_db   # 👈 matches service name
+      DB_PORT: 5432
+    ports:
+      - "8000:8000"
+
+volumes:
+  db_data:

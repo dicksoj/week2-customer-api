@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: user
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: customers
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U user -d customers"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build containers
+        run: docker-compose build
+
+      - name: Start containers
+        run: docker-compose up -d
+
+      - name: Wait for API health
+        run: |
+          for i in {1..10}; do
+            STATUS=$(docker inspect --format='{{json .State.Health.Status}}' customer_api || echo "null")
+            echo "Attempt $i: STATUS=$STATUS"
+            if [ "$STATUS" == "\"healthy\"" ]; then
+              echo "✅ API is healthy"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "❌ API not healthy"
+          exit 1
+		  
+	  - name: Install dependencies
+        run: pip install -r app/requirements.txt
+
+      - name: Run tests
+        run: pytest -v tests
+
+      - name: Test API endpoint
+        run: curl -f http://localhost:8000/customers
